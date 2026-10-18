@@ -1,7 +1,7 @@
 # OverClock
 
-[![CI](https://github.com/abishekss2007/OverClock/actions/workflows/ci.yml/badge.svg)](https://github.com/abishekss2007/OverClock/actions/workflows/ci.yml)
-[![CD](https://github.com/abishekss2007/OverClock/actions/workflows/cd.yml/badge.svg)](https://github.com/abishekss2007/OverClock/actions/workflows/cd.yml)
+[![CI](https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004/actions/workflows/ci.yml/badge.svg)](https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004/actions/workflows/ci.yml)
+[![CD](https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004/actions/workflows/cd.yml/badge.svg)](https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004/actions/workflows/cd.yml)
 
 Team OverClock's entry for **Hack With Bangalore 4.0, Track A (CraftifAI PipeGen)**.
 
@@ -27,6 +27,6 @@ flowchart LR
   Mermaid diagram rendering and the ESP32 firmware build on every push.
 
 ```bash
-git clone https://github.com/abishekss2007/OverClock && cd OverClock/SafeSight
+git clone https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004 && cd CraftifAIHackathonOverClockCRA004/SafeSight
 python3 -m safesight --source sim      # then open http://localhost:8080
 ```

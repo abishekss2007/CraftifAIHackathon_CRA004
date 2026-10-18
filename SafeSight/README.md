@@ -1,7 +1,7 @@
 # SafeSight: a camera that calls for help when a worker goes down
 
-[![CI](https://github.com/abishekss2007/OverClock/actions/workflows/ci.yml/badge.svg)](https://github.com/abishekss2007/OverClock/actions/workflows/ci.yml)
-[![CD](https://github.com/abishekss2007/OverClock/actions/workflows/cd.yml/badge.svg)](https://github.com/abishekss2007/OverClock/actions/workflows/cd.yml)
+[![CI](https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004/actions/workflows/ci.yml/badge.svg)](https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004/actions/workflows/ci.yml)
+[![CD](https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004/actions/workflows/cd.yml/badge.svg)](https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004/actions/workflows/cd.yml)
 ![Python 3.9 to 3.13](https://img.shields.io/badge/python-3.9%20to%203.13-blue)
 ![No runtime dependencies](https://img.shields.io/badge/runtime%20deps-none-brightgreen)
 
@@ -257,7 +257,7 @@ Needs Python 3.9 or newer. The core has no pip dependencies.
 and open http://localhost:8080.
 
 ```bash
-git clone https://github.com/abishekss2007/OverClock && cd OverClock/SafeSight
+git clone https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004 && cd CraftifAIHackathonOverClockCRA004/SafeSight
 
 # Rehearsal mode: scripted factory scene, no GPU needed
 python3 -m safesight --source sim
