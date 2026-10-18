@@ -32,10 +32,10 @@ def _box(o):
     if "topleftx" in b:  # nvmsgconv full schema
         return [_f(b["topleftx"]), _f(b["toplefty"]), _f(b["bottomrightx"]), _f(b["bottomrighty"])]
     if "left" in b:
-        l, t = _f(b["left"]), _f(b["top"])
+        left, top = _f(b["left"]), _f(b["top"])
         if "width" in b:
-            return [l, t, l + _f(b["width"]), t + _f(b["height"])]
-        return [l, t, _f(b.get("right")), _f(b.get("bottom"))]
+            return [left, top, left + _f(b["width"]), top + _f(b["height"])]
+        return [left, top, _f(b.get("right")), _f(b.get("bottom"))]
     if "x1" in b:
         return [_f(b["x1"]), _f(b["y1"]), _f(b["x2"]), _f(b["y2"])]
     return None

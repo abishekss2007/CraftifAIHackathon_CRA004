@@ -1,0 +1,96 @@
+name: CD
+
+# Runs only after CI has passed on main (or when a v* tag is pushed).
+# 1. Builds the static demo site and a release bundle, kept as workflow artifacts.
+# 2. Deploys the demo to GitHub Pages when the repository variable PAGES_ENABLED is "true"
+#    (Settings > Pages > Source: GitHub Actions, then Settings > Variables > PAGES_ENABLED=true).
+# 3. On a v* tag, publishes a GitHub Release with the bundle attached.
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build demo site and bundle
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: SafeSight
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Tests again on the exact commit being shipped
+        run: python -m unittest
+      - name: Version
+        id: meta
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF#refs/tags/}"; else v="main-$(git rev-parse --short HEAD)"; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+      - name: Build static demo site
+        run: python tools/build_demo.py site
+      - name: Build release bundle
+        run: |
+          mkdir -p dist
+          git archive --format=zip --prefix="SafeSight/" -o "dist/safesight-${{ steps.meta.outputs.version }}.zip" HEAD
+          (cd dist && sha256sum ./*.zip > SHA256SUMS)
+          cat dist/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: safesight-bundle
+          path: SafeSight/dist/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: SafeSight/site
+
+  pages:
+    name: Deploy demo to GitHub Pages
+    needs: build
+    if: vars.PAGES_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  release:
+    name: Publish GitHub Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: safesight-bundle
+          path: dist
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.version }}
+        run: gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "SafeSight $TAG" --generate-notes

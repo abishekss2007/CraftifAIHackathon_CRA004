@@ -1,0 +1,28 @@
+[project]
+name = "safesight"
+version = "1.0.0"
+description = "Workplace fall, man-down and danger-zone alerts on top of CraftifAI PipeGen detections"
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = []
+
+[project.optional-dependencies]
+mqtt = ["paho-mqtt>=1.6"]
+serial = ["pyserial>=3.5"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 140
+extend-exclude = ["tools/node_modules"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B"]
+ignore = ["E501"]
+
+[tool.coverage.run]
+source = ["safesight"]
+omit = ["safesight/simulate.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true

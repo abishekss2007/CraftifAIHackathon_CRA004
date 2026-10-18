@@ -1,0 +1,141 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: SafeSight
+
+jobs:
+  lint:
+    name: Lint (ruff, shellcheck, compile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: python -m pip install ruff==0.16.8
+      - name: Ruff
+        run: ruff check --output-format=github .
+      - name: Byte-compile every module
+        run: python -m compileall -q safesight tests tools
+      - name: Shellcheck
+        run: shellcheck run_with_pipegen.sh tools/smoke.sh
+      - name: Zones file is valid
+        run: python -c "import json; from safesight.__main__ import validate_zones; validate_zones(json.load(open('zones.json'))); print('zones.json OK')"
+
+  test:
+    name: Tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Unit, scenario and HTTP tests
+        run: python -m unittest -v
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run tests under coverage
+        run: |
+          python -m pip install coverage==7.6.10
+          python -m coverage run -m unittest
+          python -m coverage report | tee coverage.txt
+          python -m coverage xml
+          { echo '### Test coverage'; echo '```'; cat coverage.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: SafeSight/coverage.xml
+
+  smoke:
+    name: Server smoke test (${{ matrix.mode }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [sim, replay]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start server, call the API, check alerts and the evidence chain
+        run: tools/smoke.sh ${{ matrix.mode }}
+
+  browser:
+    name: Dashboard e2e and Mermaid diagrams
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: SafeSight/tools/package-lock.json
+      - name: Install Playwright and Chromium
+        working-directory: SafeSight/tools
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Every Mermaid diagram renders
+        run: node tools/check_mermaid.mjs README.md ../README.md
+      - name: Build the static demo site
+        run: python tools/build_demo.py site
+      - name: Dashboard e2e, demo mode
+        run: |
+          (cd site && python -m http.server 8000 >/dev/null 2>&1 &)
+          sleep 1
+          node tools/e2e.mjs demo http://127.0.0.1:8000/
+      - name: Dashboard e2e, live server mode
+        run: |
+          python -m safesight --source sim --port 8080 --log "$RUNNER_TEMP/events.jsonl" >/dev/null 2>&1 &
+          for _ in $(seq 1 50); do curl -fsS http://127.0.0.1:8080/api/config >/dev/null 2>&1 && break; sleep 0.2; done
+          node tools/e2e.mjs live http://127.0.0.1:8080/
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: SafeSight/e2e-*.png
+          if-no-files-found: ignore
+
+  firmware:
+    name: ESP32 beacon firmware compiles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: arduino/setup-arduino-cli@v2
+      - name: Install the ESP32 core
+        run: |
+          arduino-cli core update-index --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+          arduino-cli core install esp32:esp32 --additional-urls https://espressif.github.io/arduino-esp32/package_esp32_index.json
+      - name: Compile safesight_beacon for ESP32
+        run: arduino-cli compile --fqbn esp32:esp32:esp32 firmware/safesight_beacon

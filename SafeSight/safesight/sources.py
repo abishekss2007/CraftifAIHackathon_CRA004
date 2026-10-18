@@ -38,10 +38,9 @@ def tail_jsonl(path, from_start=False):
 def replay_jsonl(path, speed=1.0, loop=True):
     """Replay a recorded metadata file at its original pace (for the offline demo)."""
     while True:
-        prev = None
         base = time.time()
         with open(path) as f:
-            rows = [json.loads(l) for l in f if l.strip()]
+            rows = [json.loads(line) for line in f if line.strip()]
         t0 = rows[0].get("ts", 0) if rows else 0
         for i, r in enumerate(rows):
             rt = r.get("ts", t0 + i / 15)
@@ -90,7 +89,7 @@ def entry_hash(ev):
 def last_hash(path):
     try:
         with open(path) as f:
-            lines = [l for l in f if l.strip()]
+            lines = [line for line in f if line.strip()]
         return json.loads(lines[-1]).get("hash", GENESIS) if lines else GENESIS
     except (OSError, ValueError):
         return GENESIS
