@@ -1,0 +1,13 @@
+[
+  {
+    "name": "Press machine",
+    "restricted": true,
+    "polygon": [[0.66, 0.82], [0.98, 0.82], [0.98, 0.98], [0.66, 0.98]]
+  },
+  {
+    "name": "Loading bay",
+    "restricted": false,
+    "max_people": 1,
+    "polygon": [[0.02, 0.80], [0.30, 0.80], [0.30, 0.99], [0.02, 0.99]]
+  }
+]

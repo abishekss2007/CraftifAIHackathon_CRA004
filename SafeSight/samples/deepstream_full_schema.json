@@ -1,0 +1,13 @@
+{
+ "sensorId": "cam-3",
+ "object": {
+  "id": "9",
+  "type": "Person",
+  "bbox": {
+   "topleftx": 10,
+   "toplefty": 20,
+   "bottomrightx": 60,
+   "bottomrighty": 200
+  }
+ }
+}

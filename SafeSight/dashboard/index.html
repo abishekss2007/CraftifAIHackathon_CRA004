@@ -1,0 +1,615 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SafeSight Control Room</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: a site safety control room. The camera is the room's window and takes most of the
+   screen; the incident log is the operator's clipboard on the right; zones and provenance sit
+   below as the "site plan". Identity: industrial signage. Hazard amber is the only accent. */
+:root{
+  --bg:#ECE8E0;          /* warm concrete */
+  --surface:#F7F5F0;
+  --sunk:#E2DDD3;
+  --ink:#1B1C1E;         /* charcoal */
+  --ink-2:#55565A;
+  --ink-3:#7E7D79;
+  --rule:#CFC8BB;
+  --amber:#E8A300;       /* hazard amber: accent, used sparingly */
+  --amber-ink:#1B1C1E;
+  --crit:#C8322A; --high:#D9622B; --warn:#B98300; --info:#3E6A8A; --ok:#3F7D5A;
+  --scene:#22231F; --scene-grid:#2C2D28; --scene-ink:#F2EFE8;
+  --f-display:"Barlow Condensed","Arial Narrow",Arial,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  --s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;
+  --radius:3px; --shadow:0 1px 0 rgba(0,0,0,.04),0 6px 18px -12px rgba(0,0,0,.25);
+  --t:160ms cubic-bezier(.2,.7,.2,1);
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#141412;--surface:#1C1C19;--sunk:#10100E;--ink:#EEEAE1;--ink-2:#B4AFA4;--ink-3:#8A867C;--rule:#33322D;
+  --amber:#F2B321;--crit:#F0574D;--high:#F07A43;--warn:#E2B23A;--info:#7FA9C8;--ok:#6DB389;
+  --scene:#0E0E0C;--scene-grid:#1B1B18;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141412;--surface:#1C1C19;--sunk:#10100E;--ink:#EEEAE1;--ink-2:#B4AFA4;--ink-3:#8A867C;--rule:#33322D;
+  --amber:#F2B321;--crit:#F0574D;--high:#F07A43;--warn:#E2B23A;--info:#7FA9C8;--ok:#6DB389;
+  --scene:#0E0E0C;--scene-grid:#1B1B18;color-scheme:dark}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font:14px/1.45 var(--f-body)}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+
+/* top bar */
+.top{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;padding-block:var(--s3);border-bottom:2px solid var(--ink)}
+.brand{display:flex;align-items:center;gap:var(--s2);font:700 22px/1 var(--f-display);letter-spacing:.5px;text-transform:uppercase}
+.brand svg{flex:none}
+.site{color:var(--ink-2);font:500 13px var(--f-mono)}
+.grow{flex:1}
+.state{display:inline-flex;align-items:center;gap:6px;font:600 12px var(--f-mono);letter-spacing:.6px;text-transform:uppercase;padding:4px 8px;border:1px solid var(--rule);border-radius:var(--radius);background:var(--surface)}
+.state i{width:8px;height:8px;border-radius:50%;background:var(--ink-3)}
+.state[data-s="live"] i{background:var(--ok);animation:blink 1.4s infinite}
+.state[data-s="demo"] i{background:var(--info)}
+.state[data-s="lost"]{border-color:var(--crit);color:var(--crit)} .state[data-s="lost"] i{background:var(--crit)}
+@keyframes blink{50%{opacity:.3}}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--rule);background:var(--surface);border-radius:var(--radius);padding:6px 10px;cursor:pointer;font-weight:500;font-size:13px;transition:border-color var(--t),background var(--t)}
+.btn:hover{border-color:var(--ink-2)}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.btn.primary{background:var(--amber);color:var(--amber-ink);border-color:var(--amber);font-weight:600}
+.btn.danger{color:var(--crit)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* status line: real measurements only */
+.deck{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--rule);box-shadow:0 8px 16px -14px rgba(0,0,0,.5)}
+.deck-in{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s4);align-items:center;padding-block:var(--s3)}
+.meters{display:flex;flex-wrap:wrap;gap:0}
+.meter{padding:2px var(--s4);border-left:1px solid var(--rule)}
+.meter:last-child{border-right:0}
+.meter b{display:block;font:600 22px/1.1 var(--f-display);font-variant-numeric:tabular-nums}
+.meter span{font:500 11px var(--f-mono);letter-spacing:.8px;text-transform:uppercase;color:var(--ink-3)}
+.meter.hot-m b{color:var(--crit)}
+
+/* floor status: the one-line answer to "is everyone OK?" */
+.status{display:flex;align-items:center;gap:var(--s4);flex-wrap:wrap;padding:var(--s2) var(--s4);border:2px solid var(--ok);border-left-width:10px;min-width:0;border-radius:var(--radius);background:var(--surface)}
+.status b{font:700 24px/1.1 var(--f-display);letter-spacing:.6px;text-transform:uppercase}
+.status p{margin:0;color:var(--ink-2)}
+.status[data-level="watch"]{border-color:var(--warn)} .status[data-level="watch"] b{color:var(--warn)}
+.status[data-level="act"]{border-color:var(--crit)} .status[data-level="act"] b{color:var(--crit)}
+.status[data-level="clear"] b{color:var(--ok)}
+.status[data-level="idle"]{border-color:var(--rule)} .status[data-level="idle"] b{color:var(--ink-3)}
+.sicon{width:30px;height:30px;flex:none;fill:var(--ok)}
+.status[data-level="watch"] .sicon{fill:var(--warn)} .status[data-level="act"] .sicon{fill:var(--crit);animation:blink 1s infinite} .status[data-level="idle"] .sicon{fill:var(--ink-3)}
+.stext{flex:1;min-width:0}
+.status[data-level="act"]{background:color-mix(in srgb,var(--crit) 10%,var(--surface))}
+.panel.cam-act{outline:3px solid var(--crit);outline-offset:2px}
+.guide{margin:0;padding:var(--s2) var(--s4);background:var(--sunk);font-size:13px;color:var(--ink-2);border-bottom:1px solid var(--rule)}
+.guide b{color:var(--ink)}
+.typetag{font:600 10px var(--f-mono);letter-spacing:.8px;text-transform:uppercase;padding:1px 6px;border-radius:2px;margin-right:6px;vertical-align:1px;background:var(--sunk);color:var(--ink-2)}
+.legend{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s4);padding:var(--s2) var(--s4);border-top:1px solid var(--rule);font-size:12px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px}
+.legend i.dash{background:none;border:2px dashed}
+/* main grid */
+.grid{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:var(--s5);padding-block:var(--s5)}
+.panel{background:var(--surface);border:1px solid var(--rule);border-radius:var(--radius);box-shadow:var(--shadow);min-width:0}
+.ph{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;padding:var(--s3) var(--s4);border-bottom:1px solid var(--rule)}
+.ph h2{margin:0;font:600 17px/1 var(--f-display);letter-spacing:.8px;text-transform:uppercase}
+.ph small{color:var(--ink-3);font:12px var(--f-mono)}
+
+/* camera */
+.cam{position:relative;background:var(--scene)}
+canvas{display:block;width:100%;height:auto}
+.hazard{height:8px;background:repeating-linear-gradient(-45deg,var(--amber) 0 12px,var(--ink) 12px 24px)}
+.alarm{position:absolute;inset:12px 12px auto 12px;display:none;align-items:center;gap:var(--s4);flex-wrap:wrap;background:var(--crit);color:#fff;padding:var(--s3) var(--s4);border-radius:var(--radius);box-shadow:0 10px 30px -10px rgba(0,0,0,.6)}
+.alarm.show{display:none}
+.alarm strong{font:700 22px/1.1 var(--f-display);letter-spacing:.5px;text-transform:uppercase}
+.alarm .clock{font:600 28px/1 var(--f-mono);font-variant-numeric:tabular-nums}
+.alarm .btn{background:#fff;color:#000;border-color:#fff}
+.drawhint{position:absolute;left:12px;top:12px;display:none;background:var(--amber);color:var(--amber-ink);font:600 13px var(--f-body);padding:6px 10px;border-radius:var(--radius)}
+.drawing .drawhint{display:block}
+.drawing canvas{cursor:crosshair}
+
+/* timeline: one mark per incident over the last 5 minutes */
+.timeline{position:relative;height:44px;margin:var(--s3) var(--s4) var(--s4);border-left:1px solid var(--rule);border-right:1px solid var(--rule);background:linear-gradient(var(--rule),var(--rule)) 0 50%/100% 1px no-repeat}
+.timeline .tick{position:absolute;top:50%;width:10px;height:10px;margin:-5px 0 0 -5px;border-radius:50%;border:2px solid var(--surface)}
+.timeline .lab{position:absolute;bottom:-16px;font:11px var(--f-mono);color:var(--ink-3)}
+.tl-wrap{padding-bottom:var(--s3)}
+
+/* incidents */
+.filters{display:flex;gap:6px;flex-wrap:wrap;padding:var(--s3) var(--s4);border-bottom:1px solid var(--rule)}
+.chip{border:1px solid var(--rule);background:transparent;border-radius:999px;padding:3px 10px;font-size:12px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.chip em{font-style:normal;font-family:var(--f-mono);opacity:.75;margin-left:4px}
+.log{list-style:none;margin:0;padding:0;max-height:520px;overflow:auto}
+.inc{display:grid;grid-template-columns:4px 1fr auto;gap:var(--s3);padding:var(--s3) var(--s4);border-bottom:1px solid var(--rule)}
+.inc .sev{border-radius:2px}
+.inc .what{font-weight:600}
+.inc .meta{color:var(--ink-3);font:12px var(--f-mono)}
+.inc.acked{opacity:.5}
+.inc.acked .what::after{content:" · acknowledged";font-weight:400;color:var(--ink-3);font-size:12px}
+.sev-critical .sev{background:var(--crit)} .sev-high .sev{background:var(--high)}
+.sev-warning .sev{background:var(--warn)} .sev-info .sev{background:var(--info)}
+.empty{padding:var(--s6) var(--s4);color:var(--ink-3);text-align:center}
+.empty b{display:block;color:var(--ink);font:600 16px var(--f-display);letter-spacing:.6px;text-transform:uppercase;margin-bottom:4px}
+.logfoot{display:flex;gap:var(--s2);padding:var(--s3) var(--s4);flex-wrap:wrap}
+
+/* lower: zones + provenance */
+.lower{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--s5);padding-bottom:var(--s6)}
+.zlist{list-style:none;margin:0;padding:0}
+.zone{display:grid;grid-template-columns:auto 1fr auto auto;gap:var(--s3);align-items:center;padding:var(--s3) var(--s4);border-bottom:1px solid var(--rule)}
+.zone .sw{width:14px;height:14px;border:2px dashed var(--warn);border-radius:2px}
+.zone.open .sw{border-color:var(--info)}
+.zone .occ{font:600 15px var(--f-mono);font-variant-numeric:tabular-nums}
+.zone.hot .occ{color:var(--crit)}
+.zone small{display:block;color:var(--ink-3);font:12px var(--f-mono)}
+.zform{display:grid;grid-template-columns:1fr 110px auto;gap:var(--s2);padding:var(--s4);align-items:end}
+.zform label{display:flex;flex-direction:column;gap:4px;font:500 11px var(--f-mono);letter-spacing:.6px;text-transform:uppercase;color:var(--ink-3)}
+.zform input[type=text],.zform input[type=number]{border:1px solid var(--rule);background:var(--bg);border-radius:var(--radius);padding:6px 8px;min-width:0}
+.zform .row{grid-column:1/-1;display:flex;gap:var(--s2);flex-wrap:wrap;align-items:center}
+.check{flex-direction:row!important;align-items:center;text-transform:none!important;letter-spacing:0!important;font:13px var(--f-body)!important;color:var(--ink)!important}
+.msg{font-size:13px;min-height:1.2em;padding:0 var(--s4) var(--s3)}
+.msg.err{color:var(--crit)} .msg.ok{color:var(--ok)}
+.confirm{display:inline-flex;gap:6px;align-items:center;font-size:13px}
+
+.stages{list-style:none;margin:0;padding:var(--s2) 0;counter-reset:st}
+.stages li{display:grid;grid-template-columns:28px 1fr auto;gap:var(--s3);align-items:baseline;padding:var(--s2) var(--s4)}
+.stages li::before{counter-increment:st;content:counter(st);font:600 15px var(--f-mono);color:var(--ink-3)}
+.stages li.ss::before{content:"→";color:var(--amber)}
+.stages b{font:600 15px var(--f-display);letter-spacing:.6px;text-transform:uppercase}
+.stages span{color:var(--ink-2)}
+.tag{font:500 11px var(--f-mono);letter-spacing:.6px;text-transform:uppercase;padding:2px 6px;border-radius:2px;border:1px solid var(--rule);white-space:nowrap}
+.tag.ok{color:var(--ok);border-color:currentColor} .tag.wait{color:var(--ink-3)}
+pre.report{margin:0 var(--s4) var(--s4);padding:var(--s3);background:var(--sunk);border-radius:var(--radius);max-height:200px;overflow:auto;font:12px/1.5 var(--f-mono)}
+
+@media (max-width:1050px){.grid,.lower{grid-template-columns:1fr}.deck-in{grid-template-columns:1fr}.meter:first-child{border-left:0;padding-left:0}}
+@media (max-width:520px){.deck{position:static}}
+@media (max-width:520px){.stages li{grid-template-columns:28px 1fr;row-gap:2px}.stages li>*{grid-column:2;justify-self:start}.meter{padding-right:var(--s3);margin-right:var(--s3)}.meter b{font-size:20px}.zform{grid-template-columns:1fr}.zone{grid-template-columns:auto 1fr auto}.zone .del{grid-column:2/-1;justify-self:start}}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="wrap top">
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true"><path d="M13 2 25 23H1Z" fill="var(--amber)" stroke="var(--ink)" stroke-width="2" stroke-linejoin="round"/><circle cx="13" cy="15" r="3.4" fill="var(--ink)"/></svg>
+    SafeSight
+  </div>
+  <span class="site" id="site">Floor 1 · camera cam-floor-1</span>
+  <span class="grow"></span>
+  <span class="state" id="state" data-s="connecting" role="status"><i></i><span id="stateText">Connecting</span></span>
+  <button class="btn" id="sound" aria-pressed="false" title="Beep and speak new incidents out loud">Voice alerts off</button>
+</header>
+
+<div class="deck" id="deck"><div class="wrap deck-in">
+  <div class="status" id="status" data-level="idle" role="status" aria-live="polite">
+    <svg class="sicon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/></svg>
+    <div class="stext"><b id="statusHead">Waiting for camera</b><p id="statusBody">SafeSight starts judging the floor as soon as detections arrive.</p></div>
+    <button class="btn primary" id="statusAct" hidden>Acknowledge</button>
+  </div>
+  <div class="meters" aria-label="Live measurements">
+    <div class="meter"><b id="m-people">0</b><span title="People PipeGen detects in the current frame">People</span></div>
+    <div class="meter"><b id="m-open">0</b><span title="Incidents nobody has acknowledged yet">To acknowledge</span></div>
+    <div class="meter"><b id="m-safe">–</b><span title="Time since the last fall was detected">Since last fall</span></div>
+    <div class="meter"><b id="m-fps">0</b><span title="Detection frames arriving from PipeGen per second">Frames/s</span></div>
+    <div class="meter"><b id="m-lat">0</b><span title="Time SafeSight needs to apply its safety rules to one frame">Decision ms</span></div>
+  </div>
+</div></div>
+
+<main class="wrap grid">
+  <section class="panel" id="camPanel" aria-label="Camera">
+    <div class="ph"><h2>Live floor view</h2><small id="camMeta">waiting for frames…</small><span class="grow"></span>
+      <button class="btn" id="zdrawTop">Draw a zone</button></div>
+    <p class="guide" id="guide" hidden><b>What to watch:</b> person #1 falls after about 6 s and stays down, so the alarm fires 4 s later · person #2 walks into the no-entry press machine · two people crowd the loading bay near the end. The scene repeats every 26 s.</p>
+    <div class="cam" id="cam">
+      <canvas id="cv" width="1280" height="720" aria-label="Camera view with detected people and zones"></canvas>
+      <div class="drawhint" id="drawhint">Click the floor to place corners, then press Save zone below</div>
+      <div class="alarm" id="alarm" role="alert">
+        <div><strong id="alarmText">Person down</strong><div>Time since fall</div></div>
+        <span class="clock" id="alarmClock">0:00</span><span class="grow"></span>
+        <button class="btn" id="alarmAck">Acknowledge, help is coming</button>
+      </div>
+    </div>
+    <div class="hazard" aria-hidden="true"></div>
+    <div class="legend" aria-label="What the colours mean">
+      <span><i style="background:var(--ok)"></i>Standing, safe</span>
+      <span><i style="background:var(--warn)"></i>Lying, or inside a zone</span>
+      <span><i style="background:var(--crit)"></i>Fallen / down</span>
+      <span><i class="dash" style="border-color:var(--warn)"></i>No-entry zone</span>
+      <span><i class="dash" style="border-color:var(--info)"></i>Occupancy-limit zone</span>
+    </div>
+    <div class="tl-wrap">
+      <div class="ph" style="border:0;padding-bottom:0"><h2>Last 5 minutes</h2><small>each mark is one incident</small></div>
+      <div class="timeline" id="timeline" aria-label="Incident timeline"><span class="lab" style="left:0">−5 min</span><span class="lab" style="right:0">now</span></div>
+    </div>
+  </section>
+
+  <section class="panel" aria-label="Incidents">
+    <div class="ph"><h2>Incidents</h2><span class="grow"></span><small id="incCount">0 total</small></div>
+    <div class="filters" role="group" aria-label="Filter incidents">
+      <button class="chip" data-f="all" aria-pressed="true">All<em id="c-all">0</em></button>
+      <button class="chip" data-f="MAN_DOWN" aria-pressed="false">Man down<em id="c-MAN_DOWN">0</em></button>
+      <button class="chip" data-f="FALL" aria-pressed="false">Falls<em id="c-FALL">0</em></button>
+      <button class="chip" data-f="ZONE_BREACH" aria-pressed="false">Zone<em id="c-ZONE_BREACH">0</em></button>
+      <button class="chip" data-f="OVERCROWD" aria-pressed="false">Crowding<em id="c-OVERCROWD">0</em></button>
+      <button class="chip" data-f="open" aria-pressed="false">Unacknowledged</button>
+    </div>
+    <ul class="log" id="log" aria-live="polite"></ul>
+    <div class="empty" id="logEmpty"><b>Floor is clear</b>No incidents yet. Falls, people down, zone entries and crowding appear here as they happen.</div>
+    <div class="logfoot">
+      <button class="btn" id="ackAll" disabled>Acknowledge all</button>
+      <button class="btn" id="export" disabled>Export log (CSV)</button>
+    </div>
+  </section>
+</main>
+
+<section class="wrap lower">
+  <section class="panel" aria-label="Zones">
+    <div class="ph"><h2>Zones</h2><small>restricted areas and occupancy limits</small></div>
+    <ul class="zlist" id="zlist"></ul>
+    <div class="empty" id="zEmpty" hidden><b>No zones</b>Draw one on the floor view to start watching an area.</div>
+    <form class="zform" id="zform" autocomplete="off">
+      <label>Zone name<input type="text" id="zname" maxlength="40" placeholder="e.g. Forklift lane"></label>
+      <label>Max people<input type="number" id="zmax" min="1" max="50" placeholder="no limit"></label>
+      <div class="row" style="grid-column:auto">
+        <button type="button" class="btn" id="zdraw">Draw on floor</button>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="zrestr" checked> No entry (alert when anyone steps in)</label>
+        <span class="grow"></span>
+        <button type="button" class="btn" id="zcancel" hidden>Cancel</button>
+        <button type="submit" class="btn primary" id="zsave" disabled>Save zone</button>
+      </div>
+    </form>
+    <div class="msg" id="zmsg" role="status"></div>
+  </section>
+
+  <section class="panel" aria-label="Perception pipeline">
+    <div class="ph"><h2>Where the detections come from</h2></div>
+    <ol class="stages">
+      <li><b>Requirement</b><span>Plain-English safety goal given to PipeGen</span><span class="tag wait">PipeGen</span></li>
+      <li><b>Pipeline IR</b><span>Camera → person detector → tracker → pose</span><span class="tag wait">PipeGen</span></li>
+      <li><b>Model</b><span>Person + pose ONNX models</span><span class="tag wait">PipeGen</span></li>
+      <li><b>Compiler</b><span>TensorRT FP16 / INT8 engines</span><span class="tag" id="trtTag">report not loaded</span></li>
+      <li><b>Run</b><span>DeepStream app streaming JSON / MQTT</span><span class="tag" id="runTag">no feed</span></li>
+      <li class="ss"><b>SafeSight</b><span>Fall, man-down, zone and crowding rules → alarms</span><span class="tag ok">this app</span></li>
+    </ol>
+    <p class="msg" id="integrity" style="padding-top:0"></p>
+    <pre class="report" id="report" hidden></pre>
+  </section>
+</section>
+
+<script>
+const $ = id => document.getElementById(id);
+const cv = $('cv'), ctx = cv.getContext('2d');
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+let zones = [], frame = null, drawing = null, lastFrameAt = 0, lastFall = null, soundOn = false, audio, mode = 'connecting';
+const incidents = []; let filter = 'all'; let downSince = null; let downEvent = null;
+const SEV = {critical:'--crit', high:'--high', warning:'--warn', info:'--info'};
+const LIMBS = [[5,7],[7,9],[6,8],[8,10],[5,6],[5,11],[6,12],[11,12],[11,13],[13,15],[12,14],[14,16],[0,5],[0,6]];
+const flagged = {};
+
+/* ---------- state ---------- */
+function setState(s, text){ mode = s; $('state').dataset.s = s; $('stateText').textContent = text; }
+
+/* ---------- sound ---------- */
+function beep(sev){
+  if(!soundOn || !audio) return;
+  const o = audio.createOscillator(), g = audio.createGain();
+  o.frequency.value = sev==='critical'?880:sev==='high'?660:440; o.type='square';
+  g.gain.value = .05; o.connect(g); g.connect(audio.destination); o.start();
+  o.stop(audio.currentTime + (sev==='critical'?.6:.2));
+}
+$('sound').onclick = e => {
+  try { audio = audio || new (window.AudioContext||window.webkitAudioContext)(); } catch(_) { e.currentTarget.textContent = 'Sound unavailable'; e.currentTarget.disabled = true; return; }
+  soundOn = !soundOn; e.currentTarget.setAttribute('aria-pressed', soundOn); e.currentTarget.textContent = soundOn ? 'Voice alerts on' : 'Voice alerts off'; beep('info'); if(soundOn) say('Voice alerts on');
+};
+
+function say(text){ try{ if(!soundOn || !window.speechSynthesis) return; const u = new SpeechSynthesisUtterance(text); u.rate = 1.05; speechSynthesis.cancel(); speechSynthesis.speak(u); }catch(_){} }
+
+/* ---------- floor status: one plain sentence for whoever glances at the screen ---------- */
+function updateStatus(){
+  const st = $('status'); let level, head, body;
+  const live = frame && (mode==='live' || mode==='demo');
+  const openInc = incidents.filter(e=>!e.acked && e.severity!=='info');
+  const down = frame ? frame.objects.filter(o=>o.posture==='down') : [];
+  const inZone = frame ? frame.objects.filter(o=>o.zones && o.zones.some(n=>{const z=zones.find(z=>z.name===n); return z && z.restricted!==false;})) : [];
+  const crowded = zones.filter(z=>z.restricted===false && z.max_people!=null && frame && frame.zone_counts && (frame.zone_counts[z.name]||0) > z.max_people);
+  if(!live){ level='idle'; head = mode==='lost' ? 'No camera feed' : 'Waiting for camera'; body = mode==='lost' ? 'PipeGen detections stopped arriving. Check the camera and run.sh.' : 'SafeSight starts judging the floor as soon as detections arrive.'; }
+  else if(down.length){ level='act'; head = `Act now: ${down.map(o=>'person #'+o.id).join(', ')} down`; body = downSince ? `On the ground for ${clock(Date.now()/1000-downSince)}. Send someone, then press Acknowledge.` : 'Send someone to help, then press Acknowledge.'; }
+  else if(inZone.length || crowded.length){ level='watch'; head = 'Watch'; body = [inZone.length ? `${inZone.length} person${inZone.length>1?'s':''} inside a no-entry zone` : '', crowded.map(z=>`${z.name} over its limit`).join(', ')].filter(Boolean).join(' · ') + '.'; }
+  else { level='clear'; head = 'All clear'; body = `${frame.objects.length} ${frame.objects.length===1?'person':'people'} on the floor, all standing and outside no-entry zones.` + (openInc.length ? ` ${openInc.length} earlier incident${openInc.length>1?'s':''} still to acknowledge.` : ''); }
+  st.dataset.level = level; $('statusHead').textContent = head; $('statusBody').textContent = body;
+  $('statusAct').hidden = !(level==='act' && downEvent && !downEvent.acked);
+  $('camPanel').classList.toggle('cam-act', level==='act');
+}
+setInterval(updateStatus, 500);
+
+/* ---------- drawing the scene ---------- */
+function rgba(hex,a){ const h=hex.replace('#',''); const n=parseInt(h.length===3?h.split('').map(c=>c+c).join(''):h,16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
+function zoneHot(z){ const c = frame && frame.zone_counts ? (frame.zone_counts[z.name]||0) : 0; return z.restricted!==false ? c>0 : (z.max_people!=null && c>z.max_people); }
+function render(){
+  const W = cv.width, H = cv.height;
+  ctx.fillStyle = css('--scene'); ctx.fillRect(0,0,W,H);
+  ctx.strokeStyle = css('--scene-grid'); ctx.lineWidth = 1;
+  for(let x=0;x<W;x+=64){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=64){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+  const warn = css('--warn'), info = css('--info'), crit = css('--crit'), amber = css('--amber'), ok = css('--ok');
+  for(const z of zones){
+    const hot = zoneHot(z), c = hot ? crit : (z.restricted===false ? info : warn);
+    ctx.beginPath(); z.polygon.forEach(([x,y],i)=> i?ctx.lineTo(x*W,y*H):ctx.moveTo(x*W,y*H)); ctx.closePath();
+    ctx.fillStyle = rgba(c, hot?.28:.12); ctx.fill();
+    ctx.setLineDash([10,7]); ctx.strokeStyle = c; ctx.lineWidth = 2.5; ctx.stroke(); ctx.setLineDash([]);
+    const [lx,ly] = z.polygon[0], cnt = frame && frame.zone_counts ? frame.zone_counts[z.name]||0 : 0;
+    ctx.font = '600 18px "Barlow Condensed", Arial Narrow, sans-serif'; ctx.fillStyle = c;
+    ctx.fillText(`${(z.restricted!==false?'NO ENTRY · ':'')}${z.name.toUpperCase()}  ${cnt}${z.max_people!=null?'/'+z.max_people:''}`, lx*W+10, ly*H+22);
+  }
+  if(drawing && drawing.length){
+    ctx.beginPath(); drawing.forEach(([x,y],i)=> i?ctx.lineTo(x*W,y*H):ctx.moveTo(x*W,y*H));
+    if(drawing.length>2) ctx.closePath();
+    ctx.strokeStyle = amber; ctx.lineWidth = 3; ctx.stroke();
+    drawing.forEach(([x,y])=>{ctx.fillStyle=amber;ctx.beginPath();ctx.arc(x*W,y*H,7,0,7);ctx.fill();});
+  }
+  if(frame){
+    const now = performance.now();
+    for(const o of frame.objects){
+      const [x1,y1,x2,y2] = o.box;
+      let col = o.posture==='down' ? crit : (o.posture==='lying' || (o.zones&&o.zones.length)) ? warn : ok;
+      if(flagged[o.id] && flagged[o.id].until > now) col = flagged[o.id].color;
+      ctx.strokeStyle = col; ctx.lineWidth = o.posture==='down'?4:2; ctx.strokeRect(x1,y1,x2-x1,y2-y1);
+      if(o.kps){
+        ctx.strokeStyle = rgba(col,.85); ctx.lineWidth = 3;
+        for(const [a,b] of LIMBS){const p=o.kps[a],q=o.kps[b]; if(!p||!q) continue; ctx.beginPath();ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);ctx.stroke();}
+        ctx.fillStyle = css('--scene-ink'); for(const p of o.kps){ctx.beginPath();ctx.arc(p[0],p[1],2.5,0,7);ctx.fill();}
+      }
+      const label = `#${o.id} ${o.posture==='down'?'DOWN':o.posture==='lying'?'LYING':'UPRIGHT'}${o.angle!=null?' '+Math.round(o.angle)+'°':''}`;
+      ctx.font = '600 15px "IBM Plex Mono", monospace'; const w = ctx.measureText(label).width + 12;
+      ctx.fillStyle = col; ctx.fillRect(x1, y1-22, w, 22); ctx.fillStyle = '#111'; ctx.fillText(label, x1+6, y1-6);
+    }
+  }
+  requestAnimationFrame(render);
+}
+requestAnimationFrame(render);
+
+/* ---------- live meters, timeline, alarm clock ---------- */
+const fmtDur = s => s<60 ? `${Math.floor(s)}s` : `${Math.floor(s/60)}m ${String(Math.floor(s%60)).padStart(2,'0')}s`;
+const ago = ts => { const d = Math.max(0, Date.now()/1000 - ts); return d<5 ? 'just now' : d<60 ? `${Math.floor(d)}s ago` : d<3600 ? `${Math.floor(d/60)} min ago` : `${Math.floor(d/3600)} h ago`; };
+setInterval(()=>document.querySelectorAll('.meta[data-ts]').forEach(m=>{ m.textContent = m.textContent.replace(/^[^·]+·/, ago(+m.dataset.ts)+' ·'); }), 1000);
+const clock = s => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+setInterval(()=>{
+  const nowS = Date.now()/1000;
+  $('m-safe').textContent = lastFall ? fmtDur(nowS-lastFall) : 'none yet';
+  if(downSince){ $('alarmClock').textContent = clock(nowS-downSince); }
+  drawTimeline(nowS);
+}, 500);
+function drawTimeline(nowS){
+  const tl = $('timeline'); tl.querySelectorAll('.tick').forEach(t=>t.remove());
+  for(const ev of incidents){
+    const age = nowS - ev.ts; if(age > 300 || ev.severity==='info') continue;
+    const t = document.createElement('span'); t.className = 'tick';
+    t.style.left = (100 - age/3) + '%'; t.style.background = css(SEV[ev.severity]); t.title = `${ev.message} · ${new Date(ev.ts*1000).toLocaleTimeString()}`;
+    tl.appendChild(t);
+  }
+}
+
+/* ---------- incidents ---------- */
+function openCount(){ return incidents.filter(e=>!e.acked && e.severity!=='info').length; }
+function refreshCounts(){
+  const n = openCount();
+  $('m-open').textContent = n; $('m-open').parentElement.classList.toggle('hot-m', n>0);
+  $('c-all').textContent = incidents.length;
+  for(const k of ['MAN_DOWN','FALL','ZONE_BREACH','OVERCROWD']) $('c-'+k).textContent = incidents.filter(e=>e.type===k).length;
+  $('incCount').textContent = `${incidents.length} total`;
+  $('ackAll').disabled = n===0; $('export').disabled = incidents.length===0;
+  const shown = [...$('log').children].filter(li=>!li.hidden).length;
+  $('logEmpty').hidden = shown>0;
+  $('logEmpty').innerHTML = incidents.length ? '<b>Nothing matches</b>No incidents for this filter.' : '<b>Floor is clear</b>No incidents yet. Falls, people down, zone entries and crowding appear here as they happen.';
+}
+function matches(ev){ return filter==='all' || (filter==='open' ? (!ev.acked && ev.severity!=='info') : ev.type===filter); }
+function applyFilter(){ for(const li of $('log').children) li.hidden = !matches(li._ev); refreshCounts(); }
+document.querySelectorAll('.chip').forEach(c => c.onclick = () => {
+  filter = c.dataset.f; document.querySelectorAll('.chip').forEach(x=>x.setAttribute('aria-pressed', x===c)); applyFilter();
+});
+function ack(ev){
+  if(ev.acked) return; ev.acked = true; ev.ackedAt = Date.now()/1000;
+  const li = ev._li; li.classList.add('acked'); const b = li.querySelector('button'); if(b) b.remove();
+  if(ev === downEvent || (downEvent && ev.track===downEvent.track && ev.type==='FALL')) clearAlarm();
+  applyFilter();
+}
+function addIncident(ev, history){
+  ev.acked = !!history || ev.severity==='info'; incidents.unshift(ev);
+  const li = document.createElement('li'); li.className = `inc sev-${ev.severity}`; li._ev = ev; ev._li = li;
+  li.innerHTML = '<span class="sev"></span><div><div class="what"></div><div class="meta"></div></div>';
+  li.querySelector('.what').textContent = ev.message;
+  const TYPE = {MAN_DOWN:'Man down',FALL:'Fall',ZONE_BREACH:'No-entry zone',OVERCROWD:'Crowding',RECOVERED:'Recovered'};
+  const tag = document.createElement('span'); tag.className='typetag'; tag.textContent = TYPE[ev.type]||ev.type;
+  li.querySelector('.what').prepend(tag);
+  const meta = li.querySelector('.meta'); meta.dataset.ts = ev.ts;
+  meta.title = `${ev.severity} · ${new Date(ev.ts*1000).toLocaleString()} · ${ev.source||''}`;
+  meta.textContent = `${ago(ev.ts)} · ${new Date(ev.ts*1000).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'})}`;
+  if(ev.acked && ev.severity!=='info') li.classList.add('acked');
+  if(!ev.acked){ const b = document.createElement('button'); b.className='btn'; b.textContent='Acknowledge'; b.onclick=()=>ack(ev); li.appendChild(b); }
+  $('log').prepend(li);
+  while($('log').children.length > 200){ const last = $('log').lastChild; incidents.splice(incidents.indexOf(last._ev),1); last.remove(); }
+  if(ev.type==='FALL') lastFall = ev.ts;
+  applyFilter();
+  if(history) return;
+  if(ev.track) flagged[ev.track] = {color: css(SEV[ev.severity]), until: performance.now()+3000};
+  beep(ev.severity);
+  if(ev.severity!=='info' || ev.type==='RECOVERED') say(ev.message.replace('#',' number '));
+  if(ev.type==='FALL'){ downSince = ev.ts; }
+  if(ev.type==='MAN_DOWN'){ downEvent = ev; downSince = downSince || ev.ts; $('alarmText').textContent = `Person #${ev.track} is down and not moving`; $('alarm').classList.add('show'); }
+  if(ev.type==='RECOVERED'){ clearAlarm(); downSince = null; }
+}
+function clearAlarm(){ $('alarm').classList.remove('show'); downEvent = null; }
+$('alarmAck').onclick = () => { if(downEvent) ack(downEvent); clearAlarm(); };
+$('statusAct').onclick = () => { $('alarmAck').click(); $('statusAct').hidden = true; };
+$('ackAll').onclick = () => incidents.filter(e=>!e.acked).forEach(ack);
+$('export').onclick = () => {
+  const rows = [['time','severity','type','message','person','zone','camera','acknowledged']];
+  for(const e of [...incidents].reverse()) rows.push([new Date(e.ts*1000).toISOString(), e.severity, e.type, e.message, e.track||'', e.zone||'', e.source||'', e.acked?'yes':'no']);
+  const csv = rows.map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\r\n');
+  if(window.SAFESIGHT_DEMO){ const b=$('export'); const done=t=>{b.textContent=t; setTimeout(()=>b.textContent='Export log (CSV)',2500);};
+    navigator.clipboard.writeText(csv).then(()=>done('CSV copied to clipboard'),()=>done('Copy blocked by browser')); return; }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
+  a.download = `safesight-incidents-${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.csv`;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();}, 500);
+};
+
+/* ---------- zones ---------- */
+function msg(text, kind){ const m = $('zmsg'); m.textContent = text; m.className = 'msg ' + (kind||''); }
+function renderZones(){
+  const ul = $('zlist'); ul.innerHTML = '';
+  $('zEmpty').hidden = zones.length>0;
+  zones.forEach((z,i)=>{
+    const li = document.createElement('li'); li.className = 'zone' + (z.restricted===false?' open':'') + (zoneHot(z)?' hot':'');
+    const cnt = frame && frame.zone_counts ? frame.zone_counts[z.name]||0 : 0;
+    li.innerHTML = `<span class="sw"></span><div><b></b><small></small></div><span class="occ">${cnt}${z.max_people!=null?' / '+z.max_people:''}</span>`;
+    li.querySelector('b').textContent = z.name;
+    li.querySelector('small').textContent = z.restricted!==false ? 'No entry: alert on any person' : (z.max_people!=null ? `Occupancy limit ${z.max_people}` : 'Watched area');
+    const del = document.createElement('span'); del.className = 'del';
+    const b = document.createElement('button'); b.className = 'btn danger'; b.textContent = 'Remove';
+    b.onclick = () => { del.innerHTML = ''; const c = document.createElement('span'); c.className='confirm'; c.textContent = 'Remove this zone? ';
+      const y = document.createElement('button'); y.className='btn danger'; y.textContent='Remove'; y.onclick = () => saveZones(zones.filter((_,j)=>j!==i), `Removed "${z.name}".`);
+      const n = document.createElement('button'); n.className='btn'; n.textContent='Keep'; n.onclick = renderZones;
+      c.append(y,n); del.appendChild(c); y.focus(); };
+    del.appendChild(b); li.appendChild(del); ul.appendChild(li);
+  });
+}
+setInterval(()=>{ if(!document.activeElement || !document.activeElement.closest('.zone')) renderZones(); }, 1000);
+let saving = false;
+async function saveZones(next, okText){
+  if(saving) return; saving = true; $('zsave').disabled = true;
+  try{
+    if(mode !== 'demo'){
+      const r = await fetch('/api/zones',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(next)});
+      if(!r.ok){ const e = await r.json().catch(()=>({error:r.statusText})); throw new Error(e.error || 'Server refused the change'); }
+    }
+    zones = next; renderZones(); msg(okText,'ok'); return true;
+  }catch(e){ msg(`Could not save zones: ${e.message}. Nothing was changed, try again.`, 'err'); renderZones(); return false; }
+  finally{ saving = false; updateSave(); }
+}
+function startDraw(){ drawing = []; $('cam').classList.add('drawing'); $('zcancel').hidden = false; msg('Click at least 3 corners on the floor view.'); updateSave(); $('cam').scrollIntoView({behavior:'smooth',block:'center'}); }
+function stopDraw(){ drawing = null; $('cam').classList.remove('drawing'); $('zcancel').hidden = true; updateSave(); }
+function updateSave(){ $('zsave').disabled = saving || !drawing || drawing.length < 3; }
+$('zdraw').onclick = startDraw; $('zdrawTop').onclick = startDraw;
+$('zcancel').onclick = () => { stopDraw(); msg(''); };
+cv.addEventListener('click', e => {
+  if(!drawing) return; const r = cv.getBoundingClientRect();
+  drawing.push([+((e.clientX-r.left)/r.width).toFixed(3), +((e.clientY-r.top)/r.height).toFixed(3)]); updateSave();
+  if(drawing.length>=3) msg(`${drawing.length} corners placed. Name the zone and press Save zone.`);
+});
+$('zform').onsubmit = async e => {
+  e.preventDefault();
+  const name = $('zname').value.trim() || `Zone ${zones.length+1}`;
+  if(zones.some(z=>z.name.toLowerCase()===name.toLowerCase())){ msg(`A zone called "${name}" already exists. Pick another name.`,'err'); return; }
+  const maxRaw = $('zmax').value.trim(); let max = null;
+  if(maxRaw){ max = Number(maxRaw); if(!Number.isInteger(max) || max<1 || max>50){ msg('Max people must be a whole number from 1 to 50.','err'); return; } }
+  if(!drawing || drawing.length<3){ msg('Place at least 3 corners on the floor view first.','err'); return; }
+  const z = {name, restricted: $('zrestr').checked, polygon: drawing}; if(max!=null) z.max_people = max;
+  if(await saveZones([...zones, z], `Saved "${name}". SafeSight is now watching it.`)){ stopDraw(); $('zname').value=''; $('zmax').value=''; }
+};
+
+/* ---------- frames from SafeSight server ---------- */
+function onFrame(f, stats){
+  frame = f; lastFrameAt = Date.now();
+  if(cv.width !== f.width){ cv.width = f.width; cv.height = f.height; }
+  $('m-people').textContent = stats.people; $('m-fps').textContent = stats.fps; $('m-lat').textContent = stats.decide_ms;
+  $('camMeta').textContent = `${f.source || 'camera'} · frame ${f.frame ?? '–'}`;
+}
+function connect(){
+  const es = new EventSource('/stream');
+  es.addEventListener('hello', e => { const d = JSON.parse(e.data); zones = d.zones; renderZones(); d.recent.forEach(ev=>addIncident(ev,true)); });
+  es.addEventListener('zones', e => { zones = JSON.parse(e.data); renderZones(); });
+  es.addEventListener('frame', e => { const d = JSON.parse(e.data); onFrame(d.frame, d.stats); });
+  es.addEventListener('alert', e => addIncident(JSON.parse(e.data)));
+  es.onerror = () => setState('lost','Reconnecting to SafeSight');
+  setInterval(()=>{
+    if(es.readyState === 2) return setState('lost','SafeSight server stopped');
+    if(es.readyState !== 1) return;
+    const stale = Date.now()-lastFrameAt > 2000;
+    setState(stale?'lost':'live', stale?'No PipeGen feed':'Live');
+    $('runTag').textContent = stale ? 'no feed' : 'streaming'; $('runTag').className = 'tag ' + (stale?'wait':'ok');
+    if(stale && frame && frame.objects.length) frame = {...frame, objects: []};
+  }, 500);
+  const integ = () => fetch('/api/integrity').then(r=>r.json()).then(d=>{ const m=$('integrity');
+    m.textContent = d.ok ? `Incident log is tamper-evident: ${d.entries} entries, hash chain intact.` : `Warning: incident log was edited (chain breaks at line ${d.bad_line}).`;
+    m.className = 'msg ' + (d.ok?'ok':'err'); }).catch(()=>{});
+  integ(); setInterval(integ, 10000);
+  fetch('/api/config').then(r=>r.json()).then(c=>{
+    $('site').textContent = `Source · ${c.source}`;
+    if(c.has_report) fetch('/api/report').then(r=>r.ok?r.text():'').then(t=>{ if(t){ $('report').textContent=t; $('report').hidden=false; $('trtTag').textContent='report loaded'; $('trtTag').className='tag ok'; }});
+    else { $('trtTag').className='tag wait'; }
+  }).catch(()=>{});
+}
+
+/* ---------- built-in demo: used when the page is opened without the server ----------
+   Same scene and rules as safesight/simulate.py + engine.py, ported to JS. Clearly labelled. */
+function offline(){
+  setState('demo','Built-in demo, not a live camera'); $('guide').hidden = false;
+  $('site').textContent = 'Demo scene · simulated factory floor';
+  $('runTag').textContent = 'demo data'; $('runTag').className='tag wait'; $('trtTag').className='tag wait';
+  const W=1280, H=720, CYCLE=26, FPS=15;
+  const SKEL=[[0,-.95],[-.03,-.97],[.03,-.97],[-.06,-.95],[.06,-.95],[-.12,-.8],[.12,-.8],[-.16,-.62],[.16,-.62],[-.17,-.46],[.17,-.46],[-.08,-.5],[.08,-.5],[-.09,-.26],[.09,-.26],[-.09,0],[.09,0]];
+  const L=(a,b,u)=>a+(b-a)*Math.max(0,Math.min(1,u));
+  function body(cx,fy,h,ang,stride){
+    const a=ang*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a);
+    const kps=SKEL.map(([x,y],i)=>{ if(i===13||i===15) x+=stride*.08*(i===15?1:.5); if(i===14||i===16) x-=stride*.08*(i===16?1:.5);
+      return [cx+(x*ca-y*sa)*h, fy+(x*sa+y*ca)*h, .92];});
+    const xs=kps.map(k=>k[0]), ys=kps.map(k=>k[1]), p=.05*h;
+    return {kps, box:[Math.min(...xs)-p,Math.min(...ys)-p,Math.max(...xs)+p,Math.max(...ys)+p*.3]};
+  }
+  function actors(t){
+    const w=Math.sin(t*6), out=[]; let x, ang;
+    if(t<6){x=L(180,560,t/6);ang=0}else if(t<6.6){x=560+(t-6)*60;ang=L(0,88,(t-6)/.6)}
+    else if(t<15){x=596;ang=88}else if(t<16){x=596;ang=L(88,0,t-15)}else{x=L(596,1100,(t-16)/10);ang=0}
+    out.push(['1',x,560,300,ang,ang===0?w:0]);
+    out.push(['2', t<14?L(1360,960,(t-3)/6):L(960,1360,(t-14)/6), 645,330,0,w]);
+    if(t>17){out.push(['3',L(-40,260,(t-17)/5),690,360,0,-w]); out.push(['4',L(-120,170,(t-17.5)/5),700,370,0,w]);}
+    return out;
+  }
+  const torso=k=>{const sx=(k[5][0]+k[6][0])/2,sy=(k[5][1]+k[6][1])/2,hx=(k[11][0]+k[12][0])/2,hy=(k[11][1]+k[12][1])/2;return Math.atan2(Math.abs(hx-sx),Math.abs(hy-sy)||1e-9)*180/Math.PI;};
+  const inPoly=(x,y,P)=>{let c=false;for(let i=0,j=P.length-1;i<P.length;j=i++){const[xi,yi]=P[i],[xj,yj]=P[j];if((yi>y)!==(yj>y)&&x<(xj-xi)*(y-yi)/((yj-yi)||1e-9)+xi)c=!c;}return c;};
+  const tracks={}, cool={}, sev={FALL:'high',MAN_DOWN:'critical',ZONE_BREACH:'warning',OVERCROWD:'warning',RECOVERED:'info'};
+  function emit(kind,now,tid,zone,extra){
+    const key=kind+tid+(zone||''); if(now-(cool[key]??-1e9)<8) return; cool[key]=now;
+    const who=tid?`Person #${tid}`:'Zone';
+    const message={FALL:`${who} fell`,MAN_DOWN:`${who} has not got up for 4s, send help`,ZONE_BREACH:`${who} entered restricted zone '${zone}'`,
+      OVERCROWD:`${extra&&extra.count} people in '${zone}' (limit ${extra&&extra.limit})`,RECOVERED:`${who} is back on their feet`}[kind];
+    addIncident({type:kind,severity:sev[kind],ts:Date.now()/1000,track:tid,zone,source:'demo-floor-1',message});
+  }
+  zones = [{name:'Press machine',restricted:true,polygon:[[.66,.82],[.98,.82],[.98,.98],[.66,.98]]},
+           {name:'Loading bay',restricted:false,max_people:1,polygon:[[.02,.8],[.3,.8],[.3,.99],[.02,.99]]}];
+  renderZones();
+  let n=0;
+  setInterval(()=>{
+    const t0=performance.now(), now=n/FPS, t=(n%(CYCLE*FPS))/FPS; n++;
+    const counts={}; zones.forEach(z=>counts[z.name]=0);
+    const objs=actors(t).map(([id,cx,fy,h,ang,st])=>{
+      const b=body(cx,fy,h,ang,st), tr=tracks[id]||(tracks[id]={up:null,lyingSince:null,fallen:null,sent:false,posture:'upright',zs:{}});
+      const a=torso(b.kps), lying=a>55;
+      if(!lying){ if(tr.fallen!==null&&tr.posture==='down') emit('RECOVERED',now,id); Object.assign(tr,{up:now,lyingSince:null,fallen:null,sent:false,posture:'upright'}); }
+      else { tr.lyingSince=tr.lyingSince??now;
+        if(tr.fallen===null&&now-tr.lyingSince>=.4&&tr.up!==null&&now-tr.up<2.4){tr.fallen=now;tr.posture='down';emit('FALL',now,id);}
+        else if(tr.fallen!==null&&!tr.sent&&now-tr.fallen>=4){tr.sent=true;emit('MAN_DOWN',now,id);} }
+      const fx=(b.box[0]+b.box[2])/2/W, fyn=b.box[3]/H, inz=[];
+      zones.forEach(z=>{ if(inPoly(fx,fyn,z.polygon)){counts[z.name]++;inz.push(z.name);
+          if(z.restricted!==false){tr.zs[z.name]=tr.zs[z.name]??now; if(now-tr.zs[z.name]>=.5) emit('ZONE_BREACH',now,id,z.name);}}
+        else delete tr.zs[z.name]; });
+      return {id,label:'person',box:b.box,kps:b.kps,posture:tr.posture,zones:inz,angle:a};
+    });
+    zones.forEach(z=>{ if(z.max_people!=null&&counts[z.name]>z.max_people) emit('OVERCROWD',now,null,z.name,{count:counts[z.name],limit:z.max_people}); });
+    onFrame({width:W,height:H,objects:objs,zone_counts:counts,source:'demo-floor-1',frame:n}, {people:objs.length,fps:FPS,decide_ms:(performance.now()-t0).toFixed(2)});
+  }, 1000/FPS);
+}
+
+renderZones(); refreshCounts();
+const OFFLINE = location.protocol === 'file:' || window.SAFESIGHT_DEMO === true;
+if(OFFLINE) offline(); else connect();
+</script>
+</body>
+</html>
