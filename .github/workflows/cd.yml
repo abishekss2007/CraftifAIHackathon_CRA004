@@ -54,7 +54,7 @@ jobs:
           git archive --format=zip --prefix="SafeSight/" -o "dist/safesight-${{ steps.meta.outputs.version }}.zip" HEAD
           (cd dist && sha256sum ./*.zip > SHA256SUMS)
           cat dist/SHA256SUMS
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: safesight-bundle
           path: SafeSight/dist/
