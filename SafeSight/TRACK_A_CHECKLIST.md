@@ -13,7 +13,7 @@ Run from an **X11 desktop session** (not Wayland: pick "Ubuntu on Xorg" at login
 
 ```bash
 pipegen --version                 # must print 0.5.1
-git clone https://github.com/abishekss2007/CraftifAIHackathonOverClockCRA004 && cd CraftifAIHackathonOverClockCRA004/SafeSight
+git clone https://github.com/abishekss2007/OverClockCraftifAIHackathon_CRA004 && cd OverClockCraftifAIHackathon_CRA004/SafeSight
 ```
 
 1. Start PipeGen and paste the block from `pipegen/REQUIREMENT.md` as the Requirement.
